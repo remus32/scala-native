@@ -460,10 +460,13 @@ object ScalaNativePluginInternal {
         Process(compile, cwd) ! logger
       }
 
-      logger.time("Stripping native binary") {
-        logger.running(strip)
-        Files.copy(nio.file.Paths.get(abs(outpath)), nio.file.Paths.get(abs(outpath) + ".nostrip"))
-        Process(strip, cwd) ! logger
+      if (nativeDoStrip.value) {
+        logger.time("Stripping native binary") {
+          logger.running(strip)
+          Files.copy(nio.file.Paths.get(abs(outpath)),
+                     nio.file.Paths.get(abs(outpath) + ".nostrip"))
+          Process(strip, cwd) ! logger
+        }
       }
 
       outpath
