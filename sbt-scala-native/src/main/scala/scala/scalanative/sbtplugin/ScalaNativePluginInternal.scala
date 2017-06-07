@@ -2,22 +2,23 @@ package scala.scalanative
 package sbtplugin
 
 import sbtcrossproject.CrossPlugin.autoImport._
-import ScalaNativePlugin.autoImport._
 
+import ScalaNativePlugin.autoImport._
 import scalanative.nir
 import scalanative.tools
 import scalanative.io.VirtualDirectory
 import scalanative.util.{Scope => ResourceScope}
 
 import sbt.testing.Framework
-import testinterface.ScalaNativeFramework
-
-import sbt._, Keys._, complete.DefaultParsers._
+import testinterface.ScalaNativeFrameworkimport sbt._import Keys._import complete.DefaultParsers._
 
 import scala.util.Try
-
 import System.{lineSeparator => nl}
 import java.io.ByteArrayInputStream
+import java.nio
+import java.nio.file.Files
+
+import sbt.PluginDiscovery.Paths
 
 object ScalaNativePluginInternal {
 
@@ -452,9 +453,17 @@ object ScalaNativePluginInternal {
       val paths     = apppaths.map(abs) ++ opaths
       val compile   = abs(clangpp) +: (flags ++ paths)
 
+      val strip = "strip" :: "-s" :: abs(outpath) :: Nil
+
       logger.time("Linking native code") {
         logger.running(compile)
         Process(compile, cwd) ! logger
+      }
+
+      logger.time("Stripping native binary") {
+        logger.running(strip)
+        Files.copy(nio.file.Paths.get(abs(outpath)), nio.file.Paths.get(abs(outpath) + ".nostrip"))
+        Process(strip, cwd) ! logger
       }
 
       outpath

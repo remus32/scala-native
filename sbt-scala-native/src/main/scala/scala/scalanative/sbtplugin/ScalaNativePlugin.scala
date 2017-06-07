@@ -48,6 +48,9 @@ object ScalaNativePlugin extends AutoPlugin {
 
     val nativeGC =
       settingKey[String]("GC choice, either \"none\" or \"boehm\".")
+
+    val nativeDoStrip =
+      settingKey[Boolean]("Strip the result binary")
   }
 
   override def projectSettings: Seq[Setting[_]] = (
