@@ -16,7 +16,7 @@ import scala.util.Try
 import System.{lineSeparator => nl}
 import java.io.ByteArrayInputStream
 import java.nio
-import java.nio.file.Files
+import java.nio.file.{Files, StandardCopyOption}
 
 import sbt.PluginDiscovery.Paths
 
@@ -265,6 +265,10 @@ object ScalaNativePluginInternal {
         .withMode(mode(nativeMode.value))
     },
     nativeUnpackLib := {
+    nativeLogger := streams.value.log,
+    nativeGC := "boehm",
+    nativeDoStrip := false,
+    nativeCompileLib := {
       val cwd       = nativeWorkdir.value
       val logger    = nativeLogger.value
       val classpath = (fullClasspath in Compile).value
@@ -460,14 +464,23 @@ object ScalaNativePluginInternal {
         Process(compile, cwd) ! logger
       }
 
-      if (nativeDoStrip.value) {
-        logger.time("Stripping native binary") {
+      if (nativeDoStrip.value || (nativeMode.value == "release")) {
+        val in = nio.file.Paths.get(abs(outpath))
+        val out = nio.file.Paths.get(abs(outpath) + ".nostrip")
+        val (stripped, nstripped) = logger.time("Stripping native binary") {
           logger.running(strip)
-          Files.copy(nio.file.Paths.get(abs(outpath)),
-                     nio.file.Paths.get(abs(outpath) + ".nostrip"))
+          Files.copy(in, out, StandardCopyOption.REPLACE_EXISTING)
           Process(strip, cwd) ! logger
+          (Files.size(in), Files.size(out))
         }
+        def roundto(in: Double, pl: Int): Double =
+          math.round(in * math.pow(10, pl)).toDouble / math.pow(10, pl)
+        val sz = (nstripped - stripped).toDouble / 100
+        val per = (stripped.toDouble / nstripped.toDouble) * 100
+        logger.info(s"Stripped ${roundto(sz, 2)}kB(${roundto(sz, 2)})% of original size")
+        Files.deleteIfExists(out)
       }
+
 
       outpath
     },
