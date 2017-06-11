@@ -268,6 +268,22 @@ object ScalaNativePluginInternal {
     nativeLogger := streams.value.log,
     nativeGC := "boehm",
     nativeDoStrip := false,
+    nativeStaticLibs := Nil,
+    nativeConfig := {
+      val mainClass = selectMainClass.value.getOrElse(
+        throw new MessageOnlyException("No main class detected.")
+      )
+      val classpath = fullClasspath.value.map(_.data)
+      val entry     = nir.Global.Top(mainClass.toString + "$")
+      val cwd       = nativeWorkdir.value
+
+      tools.Config.empty
+        .withEntry(entry)
+        .withPaths(classpath)
+        .withWorkdir(cwd)
+        .withTarget(nativeTarget.value)
+        .withMode(mode(nativeMode.value))
+    },
     nativeCompileLib := {
       val cwd       = nativeWorkdir.value
       val logger    = nativeLogger.value
@@ -432,6 +448,7 @@ object ScalaNativePluginInternal {
       val target      = nativeTarget.value
       val gc          = nativeGC.value
       val linkingOpts = nativeLinkingOptions.value
+      val statics     = nativeStaticLibs.value
       val clangpp     = nativeClangPP.value
       val outpath     = (artifactPath in nativeLink).value
 
@@ -452,10 +469,11 @@ object ScalaNativePluginInternal {
       }
       val linkopts  = links.map("-l" + _) ++ linkingOpts
       val targetopt = Seq("-target", target)
+
       val flags     = Seq("-o", abs(outpath)) ++ linkopts ++ targetopt
       val opaths    = (nativelib ** "*.o").get.map(abs)
       val paths     = apppaths.map(abs) ++ opaths
-      val compile   = abs(clangpp) +: (flags ++ paths)
+      val compile   = abs(clangpp) +: (flags ++ paths ++ statics)
 
       val strip = "strip" :: "-s" :: abs(outpath) :: Nil
 
