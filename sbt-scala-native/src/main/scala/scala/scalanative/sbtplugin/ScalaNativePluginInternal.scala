@@ -2,7 +2,6 @@ package scala.scalanative
 package sbtplugin
 
 import sbtcrossproject.CrossPlugin.autoImport._
-
 import ScalaNativePlugin.autoImport._
 import scalanative.nir
 import scalanative.tools
@@ -10,7 +9,9 @@ import scalanative.io.VirtualDirectory
 import scalanative.util.{Scope => ResourceScope}
 
 import sbt.testing.Framework
-import testinterface.ScalaNativeFrameworkimport sbt._import Keys._import complete.DefaultParsers._
+import testinterface.ScalaNativeFramework
+
+import sbt._, Keys._, complete.DefaultParsers._
 
 import scala.util.Try
 import System.{lineSeparator => nl}
@@ -264,7 +265,6 @@ object ScalaNativePluginInternal {
         .withTarget(nativeTarget.value)
         .withMode(mode(nativeMode.value))
     },
-    nativeUnpackLib := {
     nativeLogger := streams.value.log,
     nativeGC := "boehm",
     nativeDoStrip := false,
@@ -284,7 +284,7 @@ object ScalaNativePluginInternal {
         .withTarget(nativeTarget.value)
         .withMode(mode(nativeMode.value))
     },
-    nativeCompileLib := {
+    nativeUnpackLib := {
       val cwd       = nativeWorkdir.value
       val logger    = nativeLogger.value
       val classpath = (fullClasspath in Compile).value
