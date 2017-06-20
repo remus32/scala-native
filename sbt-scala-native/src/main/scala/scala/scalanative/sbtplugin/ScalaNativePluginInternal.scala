@@ -449,6 +449,7 @@ object ScalaNativePluginInternal {
       val gc          = nativeGC.value
       val linkingOpts = nativeLinkingOptions.value
       val statics     = nativeStaticLibs.value
+      val bd          = baseDirectory.value
       val clangpp     = nativeClangPP.value
       val outpath     = (artifactPath in nativeLink).value
 
@@ -471,7 +472,7 @@ object ScalaNativePluginInternal {
       val targetopt = Seq("-target", target)
 
       val flags     = Seq("-o", abs(outpath)) ++ linkopts ++ targetopt
-      val opaths    = (nativelib ** "*.o").get.map(abs)
+      val opaths    = ((nativelib ** "*.o") +++ (bd ** "*.a")).get.map(abs)
       val paths     = apppaths.map(abs) ++ opaths
       val compile   = abs(clangpp) +: (flags ++ paths ++ statics)
 

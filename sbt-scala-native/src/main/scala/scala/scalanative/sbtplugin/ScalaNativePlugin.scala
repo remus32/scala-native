@@ -32,7 +32,7 @@ object ScalaNativePlugin extends AutoPlugin {
         "Additional options that are passed to clang during linking.")
 
     val nativeStaticLibs =
-      taskKey[Seq[String]](
+      settingKey[Seq[String]](
         "Static libraries that are linked to the resulting executable"
       )
 
