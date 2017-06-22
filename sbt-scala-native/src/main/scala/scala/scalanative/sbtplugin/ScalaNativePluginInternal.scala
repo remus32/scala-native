@@ -27,6 +27,9 @@ object ScalaNativePluginInternal {
   val nativeTarget =
     taskKey[String]("Target triple.")
 
+  val nativeCSourcesDir =
+    settingKey[File]("C/C++ sources directory")
+
   val nativeLinkerReporter =
     settingKey[tools.LinkerReporter](
       "A reporter that gets notified whenever a linking event happens.")
@@ -64,6 +67,9 @@ object ScalaNativePluginInternal {
 
   val nativeCompileLib =
     taskKey[File]("Precompile C/C++ code in native lib.")
+
+  val nativeCompileCSources =
+    taskKey[Seq[File]]("Compile C/C++ sources")
 
   val nativeLinkLL =
     taskKey[File]("Link native object files into the final binary")
@@ -224,6 +230,7 @@ object ScalaNativePluginInternal {
             "-o",
             abs(targetll),
             abs(targetc))
+
       def fail =
         throw new MessageOnlyException("Failed to detect native target.")
 
@@ -237,6 +244,9 @@ object ScalaNativePluginInternal {
             line.split("\"").apply(1)
         }
         .getOrElse(fail)
+    },
+    nativeCSourcesDir := {
+      baseDirectory.value / "src" / "main" / "native"
     },
     artifactPath in nativeLink := {
       crossTarget.value / (moduleName.value + "-out")
@@ -279,6 +289,7 @@ object ScalaNativePluginInternal {
           .get
       val jarhash     = Hash(jar).toSeq
       val jarhashfile = lib / "jarhash"
+
       def unpacked =
         lib.exists &&
           jarhashfile.exists &&
@@ -421,7 +432,7 @@ object ScalaNativePluginInternal {
     nativeLinkLL := {
       val linked      = nativeLinkNIR.value
       val logger      = nativeLogger.value
-      val apppaths    = nativeCompileLL.value
+      val apppaths    = nativeCompileLL.value ++ nativeCompileCSources.value
       val nativelib   = nativeCompileLib.value
       val cwd         = nativeWorkdir.value
       val target      = nativeTarget.value
@@ -469,7 +480,53 @@ object ScalaNativePluginInternal {
       nativeGenerateLL.value
       nativeCompileLL.value
       nativeCompileLib.value
+      nativeCompileCSources.value
       nativeLinkLL.value
+    },
+    nativeCompileCSources := {
+      def allFiles(f: File, filter: File => Boolean): Seq[File] = {
+        f match {
+          case null => Nil
+          case f if f.isFile =>
+            if (filter(f))
+              f :: Nil
+            else
+              Nil
+          case f if f.isDirectory =>
+            f.listFiles()
+              .view
+              .filter(_ != null)
+              .flatMap(allFiles(_, filter))
+              .toVector
+          case _ => Nil
+        }
+      }
+
+      val srcs =
+        (Seq(scalaSource.value, nativeCSourcesDir.value)).flatMap(allFiles(_, {
+          fle: File =>
+            val name = fle.getName
+            name.endsWith(".cpp") || name.endsWith(".c")
+        }))
+      if (srcs.isEmpty) {
+        Nil
+      } else {
+        val logger = nativeLogger.value
+        logger.time(s"Compiling ${srcs.size} C/C++ sources") {
+          val clangpp = nativeClangPP.value
+          val cwd     = nativeWorkdir.value
+          srcs.map { fle =>
+            val out = {
+              val name :: _ :: Nil = fle.getName.split('.').toList
+              cwd / s"__native-$name.o"
+            }
+            Process(
+              clangpp.getCanonicalPath :: "-c" :: "-o" :: out.getCanonicalPath :: fle.getCanonicalPath :: Nil,
+              cwd).!
+            out
+          }
+        }
+      }
     },
     run := {
       val env    = (envVars in run).value.toSeq
@@ -549,7 +606,9 @@ object ScalaNativePluginInternal {
         pathToClangBinary: Option[String]): Option[Seq[String]] = {
       def commandLineToListBuiltInDefines(clang: String) =
         Seq("echo", "") #| Seq(clang, "-dM", "-E", "-")
-      def splitIntoLines(s: String)      = s.split(f"%n")
+
+      def splitIntoLines(s: String) = s.split(f"%n")
+
       def removeLeadingDefine(s: String) = s.substring(s.indexOf(' ') + 1)
 
       for {
